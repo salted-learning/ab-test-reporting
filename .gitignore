@@ -104,7 +104,7 @@ venv.bak/
 .mypy_cache/
 
 # SQLite database
-*.db
+# *.db
 
 # YAML confgs; used for test setup
 *.yaml
