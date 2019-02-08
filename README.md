@@ -14,6 +14,7 @@ Also note that only the Dash app works currently. The batch data update script n
 
 - Mount the database, config file folder, and log file folder as volumes so the data persists across runs.
   - Could also mount the code as a volume to make development quicker and easier.
+  - Get the data out of the git repo
 - Restructure the batch `runner.py`
   - Needs to pull from a data source that's more flexible (e.g., csv files)
   - Figure out how this works within the Docker container.
@@ -22,3 +23,6 @@ Also note that only the Dash app works currently. The batch data update script n
     - Something else entirely?
 - Script for creating a bare SQLite database
   - Shouldn't track this file in the repo since it's data, but instead have a script that creates the `.db` file if it doesn't exist.
+- Refactor stats code out of flow into separate module
+- Add Bayesian stats
+- Multi-armed bandits
