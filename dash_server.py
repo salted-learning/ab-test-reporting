@@ -11,7 +11,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
 
-from ab_testing_import import DashDataHelper
+from ab_test_evaluator import DashDataHelper
 
 helper = DashDataHelper()
 

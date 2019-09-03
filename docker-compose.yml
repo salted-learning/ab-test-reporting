@@ -1,6 +1,0 @@
-ab_test_box:
-    image: ab_test_box
-    command: python ab_dash_trial_v1.py
-    ports:
-        - "8050:8050"
-    

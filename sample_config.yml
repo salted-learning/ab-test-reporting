@@ -1,0 +1,33 @@
+
+test_name: SP Calling Notification Test
+description: |
+  I really have no idea what this test was. And I bet no one else does, either, since it was run over a year ago.
+
+date_field: DATE
+test_cell_field: ACTION_KEY
+  
+metrics:
+  accepts_per_sr:
+    type: continuous
+    # really we need an SR-level dataset to calculate this,
+    # but just go with it for now
+    function: |
+      ACCEPTS
+
+  win_rate:
+    type: binary
+    function: |
+      WON_LEADS / CLOSED_LEADS
+
+  net_rev_per_sr:
+    type: continuous
+    # same as above: we really should have an SR-level
+    # dataset for this
+    function: |
+      NET_REV
+
+  connection_rate:
+    type: binary
+    function: |
+      CONNECTIONS / CALL_TRACKING_LEADS
+  

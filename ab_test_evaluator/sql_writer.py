@@ -1,6 +1,7 @@
-import sqlite3
 from contextlib import contextmanager
 import os
+import sqlite3
+import pkg_resources
 
 import pandas as pd
 import numpy as np
@@ -10,7 +11,7 @@ DATABASE_FILE = 'ab_testing_data.db'
 TEST_LIST_TABLE = 'ab_tests'
 DAILY_ROLLUP_EXT = '_daily'
 STATS_EXT = '_rolling_stats'
-
+CREATE_TABLE_FILENAME = pkg_resources.resource_filename(__name__, 'res/create_test_list_table.sql')
 
 @contextmanager
 def sqlite_connection(filename):
@@ -31,6 +32,15 @@ def _verify_test_in_list(test_name, config_file, description):
     Args:
         test_name (str): Name of the test
     """
+
+    # first check that the ab_tests table exists and create if not
+    check_query = """select name from sqlite_master where type='table' and name = ?"""
+    with sqlite_connection(DATABASE_FILE) as conn:
+        cur = conn.cursor()
+        cur.execute(check_query, (TEST_LIST_TABLE,))
+        if cur.fetchone() is None: # missing table
+            _create_test_list_table()
+    
     test_name = sqlify_test_name(test_name)
     config_file = os.path.basename(config_file)
     check_query = 'select count(*) from {} where test_name = ?'.format(TEST_LIST_TABLE)
@@ -61,6 +71,14 @@ def _verify_test_in_list(test_name, config_file, description):
             conn.execute(update_query, (config_file, description, test_name))
             conn.commit()
 
+def _create_test_list_table():
+    """Creates the test list table"""
+    with open(CREATE_TABLE_FILENAME, 'r') as f:
+        query = f.read()
+    with sqlite_connection(DATABASE_FILE) as conn:
+        conn.execute(query)
+        conn.commit()
+    
 
 def deactivate_test(test_name):
     """Sets the test_name to inactive if it exists in the test list.

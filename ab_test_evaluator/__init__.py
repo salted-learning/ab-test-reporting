@@ -1,2 +1,2 @@
-from .test_setup import ABTest
+from .ab_test import ABTest
 from .dash_data_helper import DashDataHelper
