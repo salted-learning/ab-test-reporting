@@ -38,3 +38,11 @@ metrics:
 #### CSV File Format
 
 The CSV file should be an **event-level** dataset so the continuous metrics will calculate properly. In addition to the metrics, the CSV file should include a single date column and a single test cell column.
+
+#### TO-DOs
+make button to 'callback' run_import.py - i.e run it on-demand (@mschulte)
+fix errors/bugs in dash (@mschulte)
+add bayesian eval to stats.py (@dalkheraiji)
+investigate file_upload functionality - upload csv, config to run_import.py on (@apope)
+or set-up w/ sql...or both (@apope)
+containerize this (@apope)
