@@ -11,7 +11,8 @@ import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
 
-from ab_test_evaluator import DashDataHelper
+from ab_test_evaluator.dash_data_helper import DashDataHelper
+
 
 helper = DashDataHelper()
 
@@ -206,29 +207,6 @@ def ci_chart(test_dropdown, metric_dropdown):
                        )
 
     return {'data': [trace1], 'layout':layout}
-
-
-@app.callback(
-        Output('table', 'figure'),
-        [Input('test_dropdown','value')])
-def metric_table(test_dropdown):
-    '''NOT WORKING - should populate a table of metrics'''
-    helper = DashDataHelper()
-    df = helper.get_rolling_stats(test_dropdown)
-    df = df.loc[df['DT'] == df['DT'].max()]
-    piv = df.pivot(index = 'TEST_CELL', columns = 'METRIC_NAME', values = 'METRIC_VALUES').reset_index()
-    
-    cols = [[i.title().replace('_',' ')] for i in piv.columns]
-    
-    trace1 = go.Table(header = dict(values = [1,2]),
-#                      cells = dict(values = ['a','b'])
-                      )
-                      
-#                     header =  dict(values = (df['METRICS'])),
-#                      cells = dict(values = (df['METRIC_VALUES']))
-#                      )
-    
-    return {'data':[trace1]}
 
 
 @app.callback(
