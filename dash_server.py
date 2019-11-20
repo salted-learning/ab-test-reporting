@@ -17,7 +17,7 @@ helper = DashDataHelper()
 
 app = dash.Dash()
 
-app.config.supress_callback_exceptions = True
+# app.config.supress_callback_exceptions = True
 
 app.layout = html.Div([
                     html.H1(children = 'A/B Test Results Analyzer', 
