@@ -16,32 +16,31 @@ from ab_test_evaluator.dash_data_helper import DashDataHelper
 
 helper = DashDataHelper()
 
-app = dash.Dash()
+app = dash.Dash(__name__)
 
 # app.config.supress_callback_exceptions = True
 
 app.layout = html.Div([
-                    html.H1(children = 'A/B Test Results Analyzer', 
-                            style = {'width':'80%', 'text-align':'center', 'font-size':'18', 'font-family':'Arial Black'}),
+                    html.H1(children = 'A/B Test Results Analyzer',
+                            className='app-header'),
                     
                     html.H2(children = 'Cool Tool; Boring Name',
-                            style = {'width':'80%', 'text-align':'center', 'font-color':'gray',
-                                     'font-size':'12', 'font-family':'Arial'}),
+                            className='app-header'),
 
                     html.Div([
                             dcc.Dropdown(id = 'test_dropdown',
                                          placeholder = 'Select a test...')
-                            ], 
-                            style = {'width':'25%', 'height':'5%', 'display':'inline-block', 
-                                     'font-size':'14', 'font-family':'Arial'}),
+                            ],
+                             id='test-dropdown-div',
+                             className='test-selector'),
 
                     html.Div([
                             dcc.Dropdown(id = 'metric_dropdown',
                                          value = 'GROSS_REV',
                                          placeholder = 'Select a metric...')
-                            ], 
-                            style = {'width':'55%', 'height':'5%', 'display':'inline-block', 
-                                     'font-size':'14', 'font-family':'Arial'}),
+                            ],
+                             id='metric-dropdown-div',
+                             className='test-selector'),
 
                     html.Div([
                             dcc.Textarea(id = 'start_dt',
@@ -51,39 +50,34 @@ app.layout = html.Div([
                                          disabled = True,
                                          style = {'background-color':'#f1f3f4', 'border-color':'#f1f3f4', 
                                                   'text-align':'center', 'font-family':'Arial'})
-                            ],
-                            style = {'width':'8%', 'height':'5%', 'display':'inline-block', 'font-family':'Arial'}),
+                            ]),
 
                     html.Div([
                             dcc.Graph(id = 'metrics_viz')
-                            ], 
-                            style = {'width':'90%','height':'30%','display':'inline-block',
-                                     'text-align':'center', 'font-family':'Arial'}),
+                            ],
+                             id='metrics-viz-holder',
+                             className='chart'),
 
                     html.Div([
                             dcc.Graph(id = 'p-value_viz')
-                            ], 
-                            style = {'width':'44.5%','height':'30%','display':'inline-block', 'font-family':'Arial'}),
+                            ],
+                             id='p-val-viz-holder',
+                             className='chart'),
 
                     html.Div([
                             dcc.Graph(id = 'ci_viz')
-                            ], 
-                            style = {'width':'44.5%','height':'30%','display':'inline-block', 'padding-left':'1%', 'font-family':'Arial'}),
-
-#                    html.Div([
-#                            dcc.Graph(id = 'table')
-#                            ], 
-#                            style = {'width':'80%','height':'30%','display':'inline-block', 'padding-left':'1%'}),
+                            ],
+                             id='ci-viz-holder',
+                             className='chart'),
                     
                     html.Div([
                             dcc.Markdown(id = 'test_description')
-                            ], 
-                            style = {'width':'80%','height':'30%','display':'inline-block', 
-                                     'padding-left':'1%', 'font-size':'18', 'font-family':'Arial'}),
+                            ],
+                             id='description')
                             
-                    ], 
-                    style = {'padding-left':'5%', 'padding-right':'5%', 'padding-top':'0%',
-                             'background-color':'#f1f3f4', 'font-family':'Arial'})
+                    ],
+                      id='main')
+
 
 @app.callback(
         Output('test_dropdown','options'),

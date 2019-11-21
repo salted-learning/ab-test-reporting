@@ -1,0 +1,68 @@
+/* MAIN CONTAINER */
+#main {
+    padding-left: 5%;
+    padding-right: 5%;
+    padding-top: 0%;
+    background-color: #f1f3f4;
+    font-family: Arial;
+}
+
+/* HEADER */
+.app-header {
+    width: 80%;
+    text-align: center;
+    color: black;
+}
+
+h1 {
+    font-size: 32px;
+    font-family: Arial Black;
+}
+
+h2 {
+    font-size: 24px;
+}
+
+/* SELECTOR DROPDOWNS */
+.test-selector {
+    height: 5%;
+    display: inline-block;
+    font-size: 16px;
+}
+
+#test-dropdown-div {
+    width: 25%;
+}
+
+#metric-dropdown-div {
+    width: 55%
+}
+
+/* CHARTS */
+.chart {
+    height: 30%;
+    display: inline-block;
+}
+
+#metrics-viz-holder {
+    width: 90%;
+    text-align: center;
+}
+
+#p-val-viz-holder {
+    width: 44.5%;
+}
+
+#ci-viz-holder {
+    width: 44.5%;
+    padding-left: 1%;
+}
+
+/* MARKDOWN SECTION */
+#description {
+    width: 80%;
+    height: 30%;
+    display: inline-block;
+    padding-left: 1%;
+    font-size: 18px;
+}
