@@ -101,7 +101,7 @@ app.layout = html.Div([
                                            id='close-refresh-modal',
                                            className='close'),
                                  html.Br(),
-                                 html.H3(children="Upload our updated CSV file below, then wait as it's processed",
+                                 html.H3(children="Upload your updated CSV file below, then wait as it's processed",
                                          className='upload-modal-title',
                                          id='refresh-modal-title'),
                                  dcc.Upload(id='upload-refreshed-csv',
