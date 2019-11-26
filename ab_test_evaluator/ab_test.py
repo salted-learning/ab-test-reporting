@@ -10,43 +10,50 @@ from .stats import ContinuousTestEval, BinaryTestEval
 logger = logging.getLogger(__name__)
 
 
+def _clean_dict(config):
+    if isinstance(config, str):
+        return config.strip()
+    elif isinstance(config, dict):
+        for k, v in config.items():
+            config[k] = _clean_dict(v)
+        return config
+    elif isinstance(config, list):
+        for i in range(len(config)):
+            config[i] = _clean_dict(config[i])
+        return config
+    else:
+        return config
+
+
 class ABTest(object):
 
-    def __init__(self, config_file, csv_file):
-        """Creates a test defined in config_file using data from csv_file.
+    def __init__(self, df, config):
+        """Create the test using the event-level df and the parsed contents of the
+        config file. When subclassing, be sure to call this init method as well."""
+        self.df = df
+        self.config = config
 
-        Args:
-            config_file (str): The filepath of the YAML config file for this test
-            csv_file (str): The filepath of the CSV file containing the event-level data for this test
-        """
-
-        logger.info("Parsing config file {}".format(config_file))
-        self.config_file = config_file
-        self.csv_file = csv_file
-
-        # validate the required fields are in the config file
-        # then load the values
-        with open(config_file) as f:
-            y = yaml.safe_load(f.read())
-        assert 'test_name' in y
-        assert 'description' in y
-        assert 'metrics' in y
-        for metric, metric_dict in y['metrics'].items():
+        # validate the config file format
+        logger.info("Parsing config file")
+        assert 'test_name' in config
+        assert 'description' in config
+        assert 'metrics' in config
+        for metric, metric_dict in config['metrics'].items():
             assert 'type' in metric_dict
             assert 'function' in metric_dict
-            assert metric_dict['type'] in ['continuous', 'binary']
+            assert metric_dict['type'] in ('continuous', 'binary')
 
-        # required
-        self.test_name = y['test_name']
-        self.description = y['description']
+        # required fields
+        self.test_name = config['test_name']
+        self.description = config['description']
         self.metric_definitions = {k: self._get_metric_function(v)
-                                   for k, v in y['metrics'].items()}
+                                   for k, v in config['metrics'].items()}
 
-        # optional, use defaults if it's not in there 
-        self.date_field = y.get('date_field', 'DT')
-        self.test_cell_field = y.get('test_cell_field', 'TEST_CELL')        
+        # optional fields w/ defaults
+        self.date_field = config.get('date_field', 'DT')
+        self.test_cell_field = config.get('test_cell_field', 'TEST_CELL')
 
-
+        
     def _get_metric_function(self, metric_dict):
         """Converts the metric string in the config file to a function.
 
@@ -81,33 +88,32 @@ class ABTest(object):
             data['function'] = lambda x: x[tok[0]] / x['COUNT'] if x['COUNT'] > 0 else None
 
         return data
+        
 
-
-    def load_test_data(self):
-        """Performs a complete refresh of the test's data using the CSV file sent.
+    def refresh_test_data(self):
+        """Performs a complete refresh of the test's data using the DataFrame.
         """
-        df = pd.read_csv(self.csv_file)
         # standardize the column names and add count
-        df['COUNT'] = 1
-        df = df.rename({self.date_field: 'DT',
-                        self.test_cell_field: 'TEST_CELL'},
-                       axis=1)
-        df['DT'] = pd.to_datetime(df['DT'])
+        self.df['COUNT'] = 1
+        self.df = self.df.rename({self.date_field: 'DT',
+                                  self.test_cell_field: 'TEST_CELL'},
+                                 axis=1)
+        self.df['DT'] = pd.to_datetime(self.df['DT'])
 
         # get test cells, check that there's only 2 now
-        self.test_cells = df['TEST_CELL'].unique()
+        self.test_cells = self.df['TEST_CELL'].unique()
         assert self.test_cells.shape == (2,)
 
         logger.info('Creating daily rollup')
-        daily_df = self.daily_rollup(df)
+        daily_df = self.daily_rollup()
         sql_writer.insert_daily_rollup_data(daily_df, self)
 
         logger.info('Creating rolling stats')
-        stats_df = self.rolling_stats(df)
+        stats_df = self.rolling_stats()
         sql_writer.insert_rolling_stats_data(stats_df, self)
 
 
-    def daily_rollup(self, df):
+    def daily_rollup(self):
         """Turns the event-level DataFrame into a daily rollup.
         
         Takes the event-level DataFrame and the metric definitions and
@@ -121,7 +127,7 @@ class ABTest(object):
             DataFrame: The daily rollup DataFrame
         """
         # copy dataframe so we don't modify the original
-        df = df.copy()
+        df = self.df.copy()
 
         # grouping by day, so trunc
         df['DT'] = df['DT'].dt.floor('d')
@@ -139,7 +145,7 @@ class ABTest(object):
         return df
 
 
-    def rolling_stats(self, df):
+    def rolling_stats(self):
         """Turns the event-level DataFrame into a rolling stat table.
 
         Takes the event-level DataFrame and turns it into a DataFrame which has cumulative
@@ -154,7 +160,7 @@ class ABTest(object):
                        cell per metric
         """
         # don't modify the original
-        df = df.copy()
+        df = self.df.copy()
 
         df['DT'] = df['DT'].dt.floor('d')
         start_date = df['DT'].min()
@@ -270,7 +276,34 @@ class ABTest(object):
 
         return pd.DataFrame(data)
         
-        
-    
-if __name__ == '__main__':
-    t = ABTest('tests/test_config.yaml')
+
+
+class NewABTestFromPath(ABTest):
+
+    def __init__(self, config_file, csv_file):
+        """Creates a test defined in config_file using data from csv_file.
+
+        Args:
+            config_file (str): The filepath of the YAML config file for this test
+            csv_file (str): The filepath of the CSV file containing the event-level data for this test
+        """
+        with open(config_file) as f:
+            config = yaml.safe_load(f.read())
+
+        # remove newlines from config
+        config = _clean_dict(config)
+
+        df = pd.read_csv(csv_file)
+
+        super(NewABTestFromPath, self).__init__(df, config)
+
+
+
+class ExistingABTestFromDB(ABTest):
+
+    def __init__(self, df, test_name):
+        """Refresh an existing test. Load the config from the DB by using
+        the test name."""
+
+        config = sql_writer.get_config_for_test(test_name)
+        super(ExistingABTestFromDB, self).__init__(df, config)

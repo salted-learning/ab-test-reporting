@@ -5,25 +5,25 @@ import argparse
 
 import yaml
 
-from ab_test_evaluator import ABTest
+from ab_test_evaluator import NewABTestFromPath
 
 
 def _setup_args():
     desc = 'Load an AB test by passing a config file and a CSV file'
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('--config', dest='config_file', type=str,
-                        nargs=1, default='sample_config.yml',
-                        help='the path to the config file (default: sample_config.yml)')
+                        nargs=1, default='examples/sample_config.yml',
+                        help='the path to the config file (default: examples/sample_config.yml)')
     parser.add_argument('--csv', dest='csv_file', type=str,
-                        nargs=1, default='sample_data.csv',
-                        help='the path to the event-level CSV file (default: sample_data.csv)')
+                        nargs=1, default='examples/sample_data.csv',
+                        help='the path to the event-level CSV file (default: examples/sample_data.csv)')
     args = parser.parse_args()
     return args.config_file, args.csv_file
 
 
 def import_test_data(config_file, csv_file):
-    a = ABTest(config_file, csv_file)
-    a.load_test_data()
+    a = NewABTestFromPath(config_file, csv_file)
+    a.refresh_test_data()
 
 
 if __name__ == '__main__':

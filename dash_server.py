@@ -4,15 +4,23 @@ Created on Mon Jul 23 09:01:55 2018
 
 @author: michael.schulte
 """
+import base64
+import io
+import os
+import time
 
 import dash
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
 
-from ab_test_evaluator.dash_data_helper import DashDataHelper
+import pandas as pd
+import yaml
 
+from ab_test_evaluator.dash_data_helper import DashDataHelper
+from ab_test_evaluator import ExistingABTestFromDB, ABTest
+from ab_test_evaluator.ab_test import _clean_dict
 
 helper = DashDataHelper()
 
@@ -23,25 +31,38 @@ app = dash.Dash(__name__)
 app.layout = html.Div([
                     html.H1(children = 'A/B Test Results Analyzer',
                             className='app-header'),
+    
+                    html.Div([html.Button('Add New Test',
+                                          id='new-test-button')],
+                             id='new-test-button-div',
+                             className='test-selector'),
                     
                     html.H2(children = 'Cool Tool; Boring Name',
                             className='app-header'),
 
+                    # holder for dropdown bar
                     html.Div([
-                            dcc.Dropdown(id = 'test_dropdown',
-                                         placeholder = 'Select a test...')
-                            ],
-                             id='test-dropdown-div',
-                             className='test-selector'),
+                        html.Div([dcc.Dropdown(id='test_dropdown',
+                                               placeholder='Select a test...')],
+                                 id='test-dropdown-div',
+                                 className='test-selector'),
 
-                    html.Div([
-                            dcc.Dropdown(id = 'metric_dropdown',
-                                         value = 'GROSS_REV',
-                                         placeholder = 'Select a metric...')
-                            ],
-                             id='metric-dropdown-div',
-                             className='test-selector'),
+                        html.Div([dcc.Dropdown(id='metric_dropdown',
+                                               value='GROSS_REV',
+                                               placeholder='Select a metric...')],
+                                 id='metric-dropdown-div',
+                                 className='test-selector'),
 
+                        html.Div([html.Button('Refresh Test Data',
+                                              id='refresh-button',
+                                              className='test-selector')],
+                                 id='refresh-button-div',
+                                 className='test-selector'),
+                    ],
+                    id='dropdown-bar'
+                    ),
+
+                    # this isn't showing up anywhere?
                     html.Div([
                             dcc.Textarea(id = 'start_dt',
                                          contentEditable = False,
@@ -73,15 +94,57 @@ app.layout = html.Div([
                     html.Div([
                             dcc.Markdown(id = 'test_description')
                             ],
-                             id='description')
-                            
-                    ],
+                             id='description'),
+
+                   html.Div([
+                       html.Div([html.Span(children='x',
+                                           id='close-refresh-modal',
+                                           className='close'),
+                                 html.Br(),
+                                 html.H3(children="Upload our updated CSV file below, then wait as it's processed",
+                                         className='upload-modal-title',
+                                         id='refresh-modal-title'),
+                                 dcc.Upload(id='upload-refreshed-csv',
+                                            className='upload-csv',
+                                            children='Drag and Drop or Click to Select Files'),
+                                 html.Div([html.Div(id='upload-refreshed-csv-results')],
+                                          id='upload-refreshed-csv-results-holder',
+                                          className='upload-csv-results')],
+                                className='modal-main',
+                                id='refresh-modal-main')],
+                            id='upload-refresh-modal',
+                            className='modal-hidden'),
+
+                   html.Div([
+                       html.Div([html.Span(children='x',
+                                           id='close-new-modal',
+                                           className='close'),
+                                 html.Br(),
+                                 html.H3(children="Upload both your config file and your CSV file at the same time by selecting them both in the file browser.",
+                                         className='upload-modal-title',
+                                         id='new-modal-title'),
+                                 dcc.Upload(id='upload-new-csv',
+                                            multiple=True,
+                                            className='upload-csv',
+                                            children='Drag and Drop or Click to Select Files'),
+                                 html.Div([html.Div(id='upload-new-csv-results')],
+                                          id='upload-new-csv-results-holder',
+                                          className='upload-csv-results')],
+                                className='modal-main',
+                                id='new-modal-main')],
+                            id='upload-new-modal',
+                            className='modal-hidden'),
+    
+                   html.Div(id='data-processing', style={'display': 'none'}),
+                   html.Div(id='update-test-list', style={'display': 'none'})
+    
+],
                       id='main')
 
 
 @app.callback(
-        Output('test_dropdown','options'),
-        [Input('metrics_viz','style')])
+        Output('test_dropdown', 'options'),
+        [Input('update-test-list', 'children')])
 def test_list(a):
     '''Get most up-to-date list of tests for test_dropdown'''
     helper = DashDataHelper()
@@ -214,8 +277,112 @@ def get_test_description(test_dropdown):
     
     return '### Test Description: \n' + df['description'].iloc[0].strip('\n')
 
-#width = 1200, height = 300, plot_bgcolor = '#c7c7c7', paper_bgcolor = '#c7c7c7')
 
+@app.callback(
+    Output('upload-refresh-modal', 'className'),
+    [Input('refresh-button', 'n_clicks'), Input('close-refresh-modal', 'n_clicks')],
+    [State('upload-refresh-modal', 'className')])
+def upload_modal_state(open_clicks, close_clicks, class_name_state):
+    if open_clicks == 0 or open_clicks is None: # initial load
+        return 'modal-hidden'
+    elif class_name_state == 'modal-hidden':
+        return 'modal-visible'
+    elif class_name_state == 'modal-visible':
+        return 'modal-hidden'
+
+
+@app.callback(
+    [Output('upload-refreshed-csv-results', 'children'),
+     Output('upload-refreshed-csv-results', 'className'),
+     Output('close-refresh-modal', 'n_clicks')],
+    [Input('upload-refreshed-csv', 'contents')],
+    [State('upload-refreshed-csv', 'filename'),
+     State('test_dropdown', 'value'),
+     State('close-refresh-modal', 'n_clicks'),
+     State('upload-refresh-modal', 'className')])
+def update_test_csv(contents, filename, test_name, n_close_clicks, modal_state):
+    if modal_state == 'modal-hidden': # do nothing
+        return dash.no_update, dash.no_update, dash.no_update
+    
+    # WARNING: does not accept multiple files at this time
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    try:
+        _, ext = os.path.splitext(filename)
+        if ext == '.csv':
+            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+            test = ExistingABTestFromDB(df, test_name)
+            # TODO: error handling, some sort of indication while the data is processing...
+            # For the processing, this should be broken out into 2 functions using something
+            # like example 1 here: https://dash.plot.ly/sharing-data-between-callbacks. This
+            # method would update the hidden div and message section, then another callback
+            # would look at the hidden div as the input and actually perform the refresh.
+            test.refresh_test_data()
+            return dash.no_update, '', n_close_clicks + 1
+        else:
+            return f'ERROR: Need a .csv file, not {ext}', 'error', dash.no_update
+    except Exception as e:
+        print(e)
+        return f'There was an error processing the CSV file: {str(e)}', 'error', dash.no_update
+
+
+@app.callback(
+    Output('upload-new-modal', 'className'),
+    [Input('new-test-button', 'n_clicks'), Input('close-new-modal', 'n_clicks')],
+    [State('upload-new-modal', 'className')])
+def new_modal_state(open_clicks, close_clicks, class_name_state):
+    if open_clicks == 0 or open_clicks is None: # initial load
+        return 'modal-hidden'
+    elif class_name_state == 'modal-hidden':
+        return 'modal-visible'
+    elif class_name_state == 'modal-visible':
+        return 'modal-hidden'
+
+
+@app.callback(
+    [Output('upload-new-csv-results', 'children'),
+     Output('upload-new-csv-results', 'className'),
+     Output('close-new-modal', 'n_clicks'),
+     Output('update-test-list', 'children')],
+    [Input('upload-new-csv', 'contents')],
+    [State('upload-new-csv', 'filename'),
+     State('close-new-modal', 'n_clicks'),
+     State('upload-new-modal', 'className')])
+def new_test_csv(contents_list, filename_list, n_close_clicks, modal_state):
+    if modal_state =='modal-hidden': # do nothing
+        return dash.no_update, dash.no_update, dash.no_update
+    
+    if not isinstance(n_close_clicks, int): # not sure what's the deal here
+        n_close_clicks = 0
+        
+    try:
+        # TODO: add error handling
+        assert len(contents_list) == 2
+        assert len(filename_list) == 2
+        
+        df = None
+        config = None
+        for i in range(len(contents_list)):
+            _, ext = os.path.splitext(filename_list[i])
+            content_type, content_string = contents_list[i].split(',')
+            decoded = base64.b64decode(content_string)
+            if ext == '.csv':
+                df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+            elif ext == '.yml':
+                config = yaml.safe_load(decoded)
+                config = _clean_dict(config)
+
+        assert df is not None
+        assert config is not None
+
+        test = ABTest(df, config)
+        test.refresh_test_data()
+        return '', '', n_close_clicks + 1, 'UPDATE'
+    except Exception as e:
+        print(e)
+        return f'ERROR: {str(e)}', 'error', dash.no_update, dash.no_update
+    
+        
 
 if __name__ == '__main__':
-    app.run_server(debug = True, host='0.0.0.0')
+    app.run_server(debug=True, host='0.0.0.0', dev_tools_ui=False)

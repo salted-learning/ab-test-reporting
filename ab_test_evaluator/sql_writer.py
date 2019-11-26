@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import os
 import sqlite3
 import pkg_resources
+import json
 
 import pandas as pd
 import numpy as np
@@ -24,7 +25,25 @@ def sqlify_test_name(test_name):
     return test_name.replace(' ', '_')
 
 
-def _verify_test_in_list(test_name, config_file, description):
+def get_config_for_test(test_name):
+    """Loads the JSON config for the test into a dict"""
+    # just to make sure
+    test_name = sqlify_test_name(test_name)
+    
+    load_query = """select config
+    from ab_tests where test_name = ?"""
+    with sqlite_connection(DATABASE_FILE) as conn:
+        cur = conn.cursor()
+        cur.execute(load_query, (test_name,))
+        result = cur.fetchone()
+        if result is None:
+            raise KeyError('Test not found')
+        else:
+            js = result[0]
+            return json.loads(js)
+
+    
+def _verify_test_in_list(test_name, config, description):
     """Checks whether the test is currently in the list
     of tests and active. If not, it will add or activate
     the test.
@@ -42,8 +61,8 @@ def _verify_test_in_list(test_name, config_file, description):
             _create_test_list_table()
     
     test_name = sqlify_test_name(test_name)
-    config_file = os.path.basename(config_file)
     check_query = 'select count(*) from {} where test_name = ?'.format(TEST_LIST_TABLE)
+    config_str = json.dumps(config) # save as a json string
 
     with sqlite_connection(DATABASE_FILE) as conn:
         cur = conn.cursor()
@@ -53,22 +72,22 @@ def _verify_test_in_list(test_name, config_file, description):
     if result == 0:
         # test does not exist yet
         insert_query = """
-        insert into {} (test_name, active_fg, config_file, description)
+        insert into {} (test_name, active_fg, config, description)
         values (?, 'Y', ?, ?)
         """.format(TEST_LIST_TABLE)
 
         with sqlite_connection(DATABASE_FILE) as conn:
-            conn.execute(insert_query, (test_name, config_file, description))
+            conn.execute(insert_query, (test_name, config_str, description))
             conn.commit()
     else:
         # test exists, just make sure it's active
         update_query = """
-        update {} set active_fg = 'Y', config_file = ?, description = ?
+        update {} set active_fg = 'Y', config = ?, description = ?
         where test_name = ?
         """.format(TEST_LIST_TABLE)
 
         with sqlite_connection(DATABASE_FILE) as conn:
-            conn.execute(update_query, (config_file, description, test_name))
+            conn.execute(update_query, (config_str, description, test_name))
             conn.commit()
 
 def _create_test_list_table():
@@ -141,7 +160,7 @@ def insert_daily_rollup_data(df, test):
             raise TypeError('{} column should be numeric, found {}'.format(col, df[col].dtype))
 
         
-    _verify_test_in_list(test_name, test.config_file, test.description)
+    _verify_test_in_list(test_name, test.config, test.description)
 
     table_name = test_name + DAILY_ROLLUP_EXT
     _insert_table(df, table_name)
@@ -161,7 +180,7 @@ def insert_rolling_stats_data(df, test):
         test_name (str): The name of the test
     """
     test_name = sqlify_test_name(test.test_name)
-    _verify_test_in_list(test_name, test.config_file, test.description)
+    _verify_test_in_list(test_name, test.config, test.description)
 
     # TODO: Define expected schema and add checks
     
